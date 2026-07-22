@@ -91,28 +91,32 @@ function weightedRandom<T>(items: T[], weightFn: (item: T) => number): T {
 function hashReg(reg: string): number {
   let hash = 0;
   for (let i = 0; i < reg.length; i++) {
-    hash = (hash * 31 + reg.charCodeAt(i)) & 0xffffffff;
+    hash = ((hash * 31 + reg.charCodeAt(i)) | 0) >>> 0;
   }
-  return hash;
+  return hash % 2147483646;
 }
 
-/** Seeded PRNG for deterministic results */
+/** Seeded PRNG for deterministic results — uses BigInt to avoid overflow */
 function seededRandom(seed: number): () => number {
-  let s = seed;
+  let s = BigInt(Math.abs(seed) % 2147483646);
+  const MOD = 2147483647n;
+  const MULT = 16807n;
   return () => {
-    s = (s * 16807 + 0) % 2147483647;
-    return s / 2147483647;
+    s = (s * MULT) % MOD;
+    return Number(s) / 2147483647;
   };
 }
 
 /** Parse year from Irish reg */
 function parseYear(yearStr: string): number {
   const yy = parseInt(yearStr, 10);
-  if (yy <= 3) return 2000 + yy + 100; // e.g. 221 → 2021 first half
+  // 3-digit year: first two digits = year, last digit = half (1 or 2)
+  // e.g. 211 → 2021, 212 → 2021, 221 → 2022
   if (yy >= 100) {
-    const baseYear = 2000 + (yy - 100);
-    return baseYear;
+    return 2000 + Math.floor(yy / 10);
   }
+  // 2-digit year: < 50 → 20xx, >= 50 → 19xx
+  // e.g. 12 → 2012, 99 → 1999, 03 → 2003
   return yy >= 50 ? 1900 + yy : 2000 + yy;
 }
 
